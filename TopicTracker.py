@@ -1,132 +1,102 @@
 #091421 
-#version 0.6
+#version 0.65
 
 from json.decoder import JSONDecodeError
-from os.path import exists as file_exists
+
 import sys
 import json
 from datetime import datetime
+import argparse
+import tweepy as tw
 
+def keyUpdate(locs: list): #funciton for saving data to json
+    from os.path import exists as file_exists
 
+    print('Type \'exit\' to exit and leave empty to not update field\n')
+    j = 0
+    values = []
+    while 'exit' not in values and j < len(locs):
+        values.append(input(locs[j] + ': '))
+        j += 1
+        if values[j-1] == '':
+            values.pop(j-1)
+            locs.pop(j-1)
+            j-=1
+        
+    if 'exit' in values:
+        return
 
-
-
-def keyUpdate(locs: list, values: list): #funciton for saving data to json
     if file_exists('keys.json'): #if file exists load existing data
         with open ('keys.json', 'r') as f:
             data = json.load(f)
     else:
         data = {}
 
-    while len(locs) > len(values): #locations without data will be cleared, data without location will be ignored
-            values.append('')
- 
     for l in range(len(locs)): #update values
         data[locs[l]] = values[l]
 
     with open('keys.json', 'w+') as file:
             json.dump(data, file)
+    return
 
-#check input for shared issues
-args = sys.argv[1:]
-if len(args) == 0:
-    args = ['help', ' ']
-
-if args[0] not in ['pull', 'analysis', 'setDB', 'setKeys', 'help']:
-    print('UNRECOGNIZED COMMAND\n')
-    sys.exit()
-
-if len(args) < 2:
-    print('ARGUMENT ERROR\n')
-    sys.exit()
-
-mods = [] #remove -mods from arguments
-#print(args)
-for i in args:
-    if type(i) is str:
-        if i[0] == '-':
-            mods.append(i)
-for i in mods:
-    args.remove(i)
-
-if 'help' in args or '-h' in mods:
-    print('Usage:\n  python TopicTracker.py <comand> [options] -x -y\n',
-            'Comands:',
-            ' pull    \tpull tweets [n tweets] [end date XXXX-XX-XX] [search term 1] [search term 2] ...',
-            '\t-nr \tNo retweets',
-            '\t-to \tText Only',
-            '\t-and\tInclusive topic searching',
-            '\t-ow \tOverwrite existing data',
-            ' analysis\tview analysis figures',
-            ' setDB   \tset MongoDB URL [URL]',
-            ' setKeys \tset Twitter API keys [Consumer Key] [Consumer Secret] [Access Token] [Access Token Secret]',
-            ' help    \tshow help',
-            sep ='\n')
-    sys.exit()
-
-if args[0] == 'setKeys':
-    n = 0
-    if len(args) >= 5 and all(type(x) is str for x in args[1:5]):
-        keyUpdate(['Consumer Key', 'Consumer Secret', 'Access Token', 'Access Token Secret'], args[1:])
-    else:
-        print('ARGUMENT ERROR\n')
-    sys.exit()
-
-elif args[0] == 'setDB':
-    if len(args) >= 2 and type(args[1]) is str: #argument validation
-        keyUpdate(['MongoURL'], [args[1]]) 
-    else: 
-        print('ARGUMENT ERROR\n')
-    sys.exit()
-
-elif args[0] == 'pull':
-   
-    if len(args) < 3 or any(type(x) is not str for x in args [2:]) or int(args[1]) <= 0: #argument validation
-        print('ARGUMENT ERROR\n')
-        sys.exit()
-    try: 
-        test = datetime.strptime(args[2], '%Y-%m-%d')
-        date_until = args[2]
-    except ValueError:
-        print('INCORRECT DATE ENTRY\n')
-        sys.exit()
+def tweetPull(terms: list, inclusive:bool, noRT:bool, textOnly:bool):
     
-
-    import tweepy as tw
-
-    if '-and' in mods:
+    if inclusive:
         x = ' '
     else:
         x = ' OR '
-    search_words = '(' + args[3]
+    search_words = '(' + terms[0]
 
-    for w in args[4:]:
+    for w in terms[1:]:
         search_words = search_words + x + w
     
     search_words = search_words + ')'
 
-    if '-nr' in mods:
+    if noRT:
         search_words = search_words + ' -is:retweet -"RT"'
     
-    if '-to' in mods:
+    if textOnly:
         search_words = search_words + ' -has:media'
     
-    print(search_words)
-
-    with open('keys.json', 'r') as f:
-        data = json.load(f)
-        auth = tw.OAuthHandler(data['Consumer Key'], data['Consumer Secret'])
-        auth.set_access_token(data['Access Token'], data['Access Token Secret'])
-        MongoURL = data['MongoURL']
+    try:
+        with open('keys.json', 'r') as f:
+            data = json.load(f)
+            auth = tw.OAuthHandler(data['Consumer Key'], data['Consumer Secret'])
+            auth.set_access_token(data['Access Token'], data['Access Token Secret'])
+            MongoURL = data['MongoURL']
+    except:
+        print('KEY ERROR\n*************\nPlease run setupt \'-s\' or \'--setup\'')
+        return None,None
 
     api = tw.API(auth, wait_on_rate_limit=True)
+    tweets = tw.Cursor(api.search, q=search_words, results_type= 'mixed', lang= 'en', include_entities= True, count=100).items(450)
+    return tweets,MongoURL
 
-    print(args)
-    tweets = tw.Cursor(api.search, q=search_words, results_type= 'mixed', lang= 'en', include_entities= True, count=100).items(int(args[1]))
 
 
+parser = argparse.ArgumentParser(description='Pull and analyize recent trends on twitter of the last week', prefix_chars='-+')
+parser.add_argument('--setup','-s', action='store_true', help='Enter Twitter API keys and MongoDB URL')
+parser.add_argument('--pull', '-p', nargs='*', metavar='TOPIC', type=str, help='Search Twitter for tweets containing one or more keywords or hashtags')
+parser.add_argument('--analyze', '-a', action='store_true', help= 'Run analysis generation wizard')
+parser.add_argument('+nr', '++noretweets', action='store_true', help= 'Omit retweets from search results')
+parser.add_argument('+to', '++textonly', action='store_true', help='Omit tweets with media from search results')
+parser.add_argument('+ow', '++overwrite', action='store_true', help= 'Overwrite existing data')
+parser.add_argument('+&', '++inclusive', action='store_true', help= 'Inclusive topic search')
+
+
+args = parser.parse_args()
+
+
+
+if args.setup:
+    print('Please enter Twitter API keys and MongoDB URL\n*******************')
+    keyLocations = ['Consumer Key', 'Consumer Secret', 'Access Token', 'Access Token Secret', 'MongoURL']
+    keyUpdate(keyLocations)
+
+
+if args.pull != None:
+    tweets, MongoURL = tweetPull(args.pull, args.inclusive, args.noretweets, args.textonly)
     
-
    #Mongo Connection
     from pymongo import MongoClient
     class Connect(object):
@@ -136,7 +106,7 @@ elif args[0] == 'pull':
 
     client = Connect.get_connection()
     db = client.tweets
-    if '-ow' in mods:
+    if args.overwrite:
         db.TopicTrack.drop()
     #upload
     for tweet in tweets:
@@ -152,3 +122,6 @@ elif args[0] == 'pull':
             "RT": tweet.retweet_count,
             "Fav": tweet.favorite_count}
         )
+
+if args.analyze:
+    print('tbd')
