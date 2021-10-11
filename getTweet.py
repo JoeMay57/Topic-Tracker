@@ -2,7 +2,7 @@ import tweepy as tw
 import os
 import keyFile
 
-def tweetPull(terms: list, inclusive:bool, noRT:bool, textOnly:bool, overWrite:bool):
+def tweetPull(terms: list, inclusive:bool, noRT:bool, textOnly:bool, overWrite:bool, numtweet:int):
     if not keyFile.fileCheck():
         return 
 
@@ -33,7 +33,7 @@ def tweetPull(terms: list, inclusive:bool, noRT:bool, textOnly:bool, overWrite:b
         return 
 
     api = tw.API(auth, wait_on_rate_limit=True)
-    tweets = tw.Cursor(api.search_tweets, q=search_words, result_type= 'mixed', lang= 'en', include_entities= True, count=100).items(100)
+    tweets = tw.Cursor(api.search_tweets, q=search_words, result_type= 'mixed', lang= 'en', include_entities= True, count=100).items(numtweet)
     
     from pymongo import MongoClient
     MongoURL = os.environ.get('MongoURL')
