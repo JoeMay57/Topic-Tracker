@@ -1,5 +1,5 @@
 # Topic-Tracker
-### Find and analize data from recent tweets
+### Find and analyze data from recent tweets
 
 ## Usage:
     >python TopicTracker.py [-h] [--setup] [--pull [TOPIC ...]] [-n N] [--analyze] [+nr] [+to] [+ow] [+&]
