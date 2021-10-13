@@ -1,4 +1,4 @@
-import os
+from os import environ as env
 from os.path import exists as file_exists
 
 def keyUpdate(locs: list): #funciton for saving data to json
@@ -19,22 +19,22 @@ def keyUpdate(locs: list): #funciton for saving data to json
             file.write(locs[i] + '==' + values[i] + '\n')
     return
 
-def loadKeys():
+def loadKeys() -> bool:
     if fileCheck(): #if file exists load existing data
         with open('.env', 'r') as f:
             for line in f.readlines():
                 try:
                     key, value = line.split('==')
-                    os.environ[key] =  value[:-1]
+                    env[key] =  value[:-1]
                 except ValueError:
-                    print('FILE ERROR\n*************\nPlease run setupt \'-s\' or \'--setup\'')
-                    return
-    return
+                    print('VALUE ERROR\n*************\nPlease run setupt \'-s\' or \'--setup\'')
+                    return False
+    return True
 
 def fileCheck() -> bool:
     if file_exists('.env'):
         return True
     else:
-         print('KEY4 ERROR\n*************\nPlease run setupt \'-s\' or \'--setup\'')
+         print('FILE ERROR\n*************\nPlease run setupt \'-s\' or \'--setup\'')
          return False
     
