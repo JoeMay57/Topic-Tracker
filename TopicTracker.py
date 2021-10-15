@@ -1,31 +1,38 @@
 #091421 
-#version 0.90
+#version 1.00 (101421)
 
 import argparse
 import sys
-from os import environ as env
 
 import keyFile as KF
 import MongoConnect as MC
-from getTweet import tweetPull
+import topicAnalysis as TA
+import getTweet as GT
+
 
 def optionAsk(options:list, question:str = 'Please select one:') -> int:
     print(question)
-    for i in range(len(options)):
-        print(str(i+1) + '. ' + options[i])
+    nums = range(len(options) + 1)[1:]
+    for i in nums:
+        print(str(i) + '. ' + options[i-1])
     
-    response = None
+    response = ''
 
-    while response != 'exit' and response not in range(len(options)+1)[1:]:
-        if response != None:
+    while response != 'exit':
+        if response != '':
             print("*\nIncorrect entry\nTry again\n*")
         response=input('Enter corresponding number: ')
+
+        try:
+            if int(response) in nums:
+                break
+        except ValueError:
+                continue
     
     if response == 'exit':
         sys.exit()
     else:
-        return int(response)
-    
+        return options[int(response) - 1]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Pull and analyize recent trends on twitter of the last week', prefix_chars='-+')
@@ -54,7 +61,7 @@ if __name__ == "__main__":
 
 
     if args.pull != None:
-        tweets = tweetPull(args.pull, args.inclusive, args.noretweets, args.textonly, args.overwrite, args.ntweets)
+        tweets = GT.tweetPull(GT.queryGen(args.pull, args.inclusive, args.noretweets, args.textonly, args.overwrite), args.ntweets)
         if tweets == 404:
             sys.exit()
         elif tweets == None:
@@ -63,7 +70,27 @@ if __name__ == "__main__":
             MC.uploadTweets(tweets)  
 
     if args.analyze:
-        print('tbd')
-        # print('','***********************************',
-        #     'Welcome to analysis wizard!', 'type \'exit\' at any time to exit',
-        #     '***********************************', sep='\n')
+        print('','***********************************',
+            'Welcome to analysis wizard!', 'type \'exit\' at any time to exit',
+            '***********************************', sep='\n')
+        gType = optionAsk(['Histogram', 'Scatterplot'], 'What type of graph shall we make?')
+        if gType == 'Histogram':
+            yAxis = optionAsk(['username', 'text', 'RT', 'Fav'], 'What should be examined?')
+            xAxis = 'date'
+        else:
+            xAxis = optionAsk(['username', 'date', 'text', 'RT', 'Fav'], 'What will be the x axis?')
+            yAxis = optionAsk(['username', 'date', 'text', 'RT', 'Fav'], 'What will be the y axis? \n(don\'t choose the same unless you like straight lines)')
+        
+        searchK = input('Enter topic search keyword for y axis; \nleave blank to use all data:')
+        x, y = MC.searchTweets(searchK, yAxis, xAxis)
+
+        if gType == 'Histogram':
+            TA.plotHist(x, searchK)
+        elif gType == 'Scatterplot':
+            TA.plotScatter(x, y, xAxis, yAxis, searchK)
+            
+
+        
+
+        
+
